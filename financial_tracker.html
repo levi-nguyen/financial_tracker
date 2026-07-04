@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Financial Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#0B1017;
+    --surface:#141C25;
+    --surface-2:#1B2530;
+    --border:#2C3A47;
+    --text:#F3F6F9;
+    --muted:#A6B3C0;
+    --gold:#D9B33C;
+    --gold-soft:rgba(217,179,60,0.12);
+    --green:#5FC088;
+    --red:#E37A6B;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    padding:32px 24px 80px;
+  }
+  .wrap{max-width:1120px;margin:0 auto;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:1px solid var(--border);
+    padding-bottom:22px;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+    gap:16px;
+  }
+  .brand{display:flex;flex-direction:column;gap:6px;}
+  .brand .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--gold);
+  }
+  .brand h1{
+    font-family:'Sora',sans-serif;
+    font-weight:700;
+    font-size:28px;
+    margin:0;
+    letter-spacing:-.01em;
+  }
+  .headline-figure{text-align:right;}
+  .headline-figure .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .headline-figure .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:32px;
+    font-weight:600;
+    color:var(--gold);
+    line-height:1.25;
+  }
+  .headline-figure .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+
+  .section-title{
+    font-family:'Sora',sans-serif;
+    font-size:17px;
+    font-weight:600;
+    margin:0 0 4px;
+    color:var(--text);
+  }
+  .section-desc{font-size:13px;color:var(--muted);margin:0 0 16px;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:22px;
+  }
+
+  /* current status */
+  .status-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+  @media (max-width:900px){.status-grid{grid-template-columns:repeat(2,1fr);}}
+  .status-item{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .status-item .name{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:500;}
+  .status-item input{
+    width:100%;background:transparent;border:none;border-bottom:2px solid var(--border);
+    color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;
+    padding:4px 0;outline:none;
+  }
+  .status-item input:focus{border-bottom-color:var(--gold);}
+  .status-item.debt input{color:var(--red);}
+
+  /* chart */
+  .grid2{display:grid;grid-template-columns:2fr 1fr;gap:20px;}
+  @media (max-width:850px){.grid2{grid-template-columns:1fr;}}
+  canvas#chart{width:100%!important;height:300px!important;}
+
+  .milestones{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;}
+  .milestone{
+    flex:1;min-width:140px;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;
+  }
+  .milestone .m-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .milestone .m-value{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--text);margin-top:4px;}
+
+  /* assumptions */
+  .field{margin-bottom:16px;}
+  .field label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;color:var(--text);margin-bottom:7px;font-weight:500;
+  }
+  .field label .val{font-family:'IBM Plex Mono',monospace;color:var(--gold);font-weight:600;}
+  .field input[type=range]{width:100%;accent-color:var(--gold);height:4px;}
+  .split-bar{height:8px;border-radius:4px;overflow:hidden;display:flex;margin-top:8px;background:var(--surface-2);}
+  .split-bar .etf-part{background:var(--gold);}
+  .split-bar .mf-part{background:var(--border);}
+
+  details{margin-top:6px;border-top:1px solid var(--border);padding-top:14px;}
+  summary{
+    cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;
+    list-style:none;display:flex;align-items:center;gap:6px;
+  }
+  summary::-webkit-details-marker{display:none;}
+  summary::before{content:'+';color:var(--gold);font-weight:700;width:14px;}
+  details[open] summary::before{content:'–';}
+  details .field{margin-top:16px;}
+
+  .note{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+  /* ledger */
+  .ledger-head{
+    display:grid;grid-template-columns:60px 1fr 1fr 1fr 90px;
+    padding:10px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);border-bottom:1px solid var(--border);font-weight:600;
+  }
+  .ledger-body{max-height:420px;overflow-y:auto;}
+  .ledger-row{
+    display:grid;grid-template-columns:60px 1fr 1fr 1fr 90px;align-items:center;
+    padding:10px 4px;border-bottom:1px solid var(--surface-2);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;
+  }
+  .ledger-row.current{background:var(--gold-soft);border-radius:6px;}
+  .ledger-row.pending{background:rgba(217,179,60,0.06);border-left:2px solid var(--gold);}
+  .pending-tag{font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.05em;margin-left:6px;font-weight:700;}
+  .m-idx{color:var(--muted);}
+  .m-date{color:var(--text);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;}
+  .m-forecast{color:var(--muted);}
+  .m-actual input{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--gold);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;padding:6px 8px;border-radius:6px;
+  }
+  .m-delta{text-align:right;font-weight:600;}
+  .m-delta.pos{color:var(--green);}
+  .m-delta.neg{color:var(--red);}
+  .m-delta.na{color:var(--muted);font-weight:400;}
+
+  .reset-link{display:inline-block;margin-top:6px;font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline;}
+  .footnote{margin-top:24px;font-size:12px;color:var(--muted);line-height:1.6;border-top:1px solid var(--border);padding-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow" id="horizonLabel">Personal Finance</span>
+      <h1>Financial Tracker</h1>
+    </div>
+    <div class="headline-figure">
+      <div class="label">Current Net Worth</div>
+      <div class="value" id="currentNW">—</div>
+      <div class="sub" id="currentSub"></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="section-title">Current Status</div>
+    <div class="section-desc">Your live snapshot — edit any figure and the forecast below recalculates instantly.</div>
+    <div class="status-grid">
+      <div class="status-item">
+        <div class="name">Cake Savings</div>
+        <input type="text" id="bCake" inputmode="numeric">
+      </div>
+      <div class="status-item">
+        <div class="name">ETF (FUESSV300)</div>
+        <input type="text" id="bEtf" inputmode="numeric">
+      </div>
+      <div class="status-item">
+        <div class="name">Mutual Fund (DCDS)</div>
+        <input type="text" id="bMf" inputmode="numeric">
+      </div>
+      <div class="status-item">
+        <div class="name">Emergency Fund</div>
+        <input type="text" id="bEmergency" inputmode="numeric">
+      </div>
+      <div class="status-item debt">
+        <div class="name">Outstanding Debt</div>
+        <input type="text" id="bDebt" inputmode="numeric">
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="section-title">Forecast</div>
+      <div class="section-desc" id="forecastDesc">Projected net worth from today through end of 2028.</div>
+      <canvas id="chart"></canvas>
+      <div class="milestones" id="milestones"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Assumptions</div>
+      <div class="section-desc">Drives the forecast line.</div>
+      <div class="field">
+        <label>Monthly savings <span class="val" id="lblSavings"></span></label>
+        <input type="range" id="inSavings" min="5000000" max="30000000" step="500000">
+      </div>
+      <div class="field">
+        <label>Investment growth <span class="val" id="lblGrowth"></span></label>
+        <input type="range" id="inGrowth" min="0" max="20" step="0.5">
+      </div>
+      <div class="field">
+        <label>Cash/savings interest <span class="val" id="lblCash"></span></label>
+        <input type="range" id="inCash" min="0" max="10" step="0.25">
+      </div>
+
+      <details>
+        <summary>Advanced: Cake unlock &amp; allocation phasing</summary>
+        <div class="field">
+          <label>Cake unlocks in <span class="val" id="lblUnlock"></span></label>
+          <input type="range" id="inUnlock" min="0" max="12" step="1">
+        </div>
+        <div class="field">
+          <label>Investment <span style="color:var(--muted);font-weight:400;">before unlock</span> <span class="val" id="lblInvestPre"></span></label>
+          <input type="range" id="inInvestPre" min="0" max="20000000" step="500000">
+        </div>
+        <div class="field">
+          <label>Cake top-up <span style="color:var(--muted);font-weight:400;">after unlock</span> <span class="val" id="lblCakeTopup"></span></label>
+          <input type="range" id="inCakeTopup" min="0" max="15000000" step="500000">
+        </div>
+        <div class="field">
+          <label>Investment <span style="color:var(--muted);font-weight:400;">after unlock</span> <span class="val" id="lblInvestPost"></span></label>
+          <input type="range" id="inInvestPost" min="0" max="15000000" step="500000">
+        </div>
+        <div class="field">
+          <label>ETF / Mutual Fund split <span class="val" id="lblSplit"></span></label>
+          <input type="range" id="inSplit" min="0" max="100" step="5">
+          <div class="split-bar"><div class="etf-part" id="etfBar" style="width:70%"></div><div class="mf-part" id="mfBar" style="width:30%"></div></div>
+        </div>
+        <div class="note">Remaining savings after investment + Cake top-up automatically flow to your Emergency Fund each month.</div>
+      </details>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Monthly Log</div>
+    <div class="section-desc">Optional: log your actual net worth each month to track drift from forecast.</div>
+    <div class="ledger-head">
+      <div>M</div><div>Date</div><div>Forecast</div><div>Actual</div><div style="text-align:right;">Δ</div>
+    </div>
+    <div class="ledger-body" id="ledgerBody"></div>
+  </div>
+
+  <span class="reset-link" id="resetBtn">Reset all data</span>
+
+  <div class="footnote">
+    Investment growth and cash interest are scenario assumptions, not guarantees — Vietnamese equity funds are volatile and past performance (e.g. DCDS's ~15%/yr trailing 10-year return, per Dragon Capital's own reporting) does not predict future results. One-off events (a receivable landing, a debt payoff) aren't auto-modeled — update Current Status directly when they happen, and the forecast rebases from there. Data is stored locally to your account and not shared.
+  </div>
+
+</div>
+
+<script>
+const TODAY = new Date();
+// Storage compatibility shim: use Claude's window.storage when available (in-artifact),
+// fall back to localStorage for standalone hosting (e.g. Vercel).
+if(typeof window.storage === 'undefined'){
+  window.storage = {
+    async get(key){
+      const v = localStorage.getItem('nwl_'+key);
+      if(v===null) throw new Error('not found');
+      return {key, value:v, shared:false};
+    },
+    async set(key,value){
+      localStorage.setItem('nwl_'+key, value);
+      return {key, value, shared:false};
+    },
+    async delete(key){
+      localStorage.removeItem('nwl_'+key);
+      return {key, deleted:true, shared:false};
+    },
+    async list(prefix){
+      const keys = Object.keys(localStorage).filter(k=>k.startsWith('nwl_'+(prefix||''))).map(k=>k.replace('nwl_',''));
+      return {keys, shared:false};
+    }
+  };
+}
+const TARGET_END = new Date(2028,11,31);
+const UNLOCK_TARGET = new Date(2026,8,1); // Sept 1 2026
+
+function monthsBetween(a,b){
+  return (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth());
+}
+const HORIZON = Math.max(monthsBetween(TODAY, TARGET_END), 1);
+const DEFAULT_UNLOCK = Math.max(monthsBetween(TODAY, UNLOCK_TARGET), 0);
+
+const DEFAULT_BUCKETS = {cake:279936000, etf:8600000, mf:2500000, emergency:3935302, debt:3300000};
+let bucketsNow = {...DEFAULT_BUCKETS};
+let assumptions = {savings:15000000, investPre:10000000, cakeTopup:5000000, investPost:5000000, splitEtf:70, growth:12, cashRate:5, unlockMonths:DEFAULT_UNLOCK};
+let pending = {junActual:null, julActual:null};
+let actuals = {};
+
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const monthLabel = m => new Date(TODAY.getFullYear(), TODAY.getMonth()+m, 1).toLocaleString('en-US',{month:'short',year:'numeric'});
+
+function computeForecast(){
+  const rM = Math.pow(1+assumptions.cashRate/100,1/12)-1;
+  const iM = Math.pow(1+assumptions.growth/100,1/12)-1;
+  const etfPre = assumptions.investPre*(assumptions.splitEtf/100);
+  const mfPre = assumptions.investPre*(1-assumptions.splitEtf/100);
+  const etfPost = assumptions.investPost*(assumptions.splitEtf/100);
+  const mfPost = assumptions.investPost*(1-assumptions.splitEtf/100);
+  const emergencyPre = Math.max(assumptions.savings - assumptions.investPre, 0);
+  const emergencyPost = Math.max(assumptions.savings - assumptions.investPost - assumptions.cakeTopup, 0);
+  let cake=bucketsNow.cake, etf=bucketsNow.etf, mf=bucketsNow.mf, emergency=bucketsNow.emergency, debt=bucketsNow.debt;
+  const trueTotal = cake+etf+mf+emergency-debt; // as literally banked today
+
+  // June & July: real forecast rows, pre-unlock split. If an actual TOTAL net worth
+  // was logged for either, rescale the bucket mix proportionally to match that actual
+  // total, and carry the rescaled buckets forward as the new baseline (same convention
+  // as every other row — actual overrides forecast going forward).
+  const pendingRows = [];
+  [['jun','Jun 2026'],['jul','Jul 2026']].forEach(([key,label])=>{
+    etf=(etf+etfPre)*(1+iM);
+    mf=(mf+mfPre)*(1+iM);
+    emergency=(emergency+emergencyPre)*(1+rM);
+    cake=cake*(1+rM);
+    const forecastNW = cake+etf+mf+emergency-debt;
+    const actualNW = pending[key+'Actual'];
+    if(actualNW!==null && actualNW!==undefined){
+      const forecastAssets = cake+etf+mf+emergency;
+      const targetAssets = actualNW + debt;
+      const scale = forecastAssets>0 ? targetAssets/forecastAssets : 1;
+      cake*=scale; etf*=scale; mf*=scale; emergency*=scale;
+    }
+    pendingRows.push({key, date:label, forecastNW, actualNW: actualNW!==null&&actualNW!==undefined?actualNW:null});
+  });
+
+  const rows=[{m:0,date:'Today',netWorth:cake+etf+mf+emergency-debt, trueTotal}];
+  for(let m=1;m<=HORIZON;m++){
+    cake *= (1+rM);
+    if(m>=assumptions.unlockMonths){
+      cake += assumptions.cakeTopup;
+      etf=(etf+etfPost)*(1+iM);
+      mf=(mf+mfPost)*(1+iM);
+      emergency=(emergency+emergencyPost)*(1+rM);
+    } else {
+      etf=(etf+etfPre)*(1+iM);
+      mf=(mf+mfPre)*(1+iM);
+      emergency=(emergency+emergencyPre)*(1+rM);
+    }
+    rows.push({m, date:monthLabel(m), netWorth: cake+etf+mf+emergency-debt});
+  }
+  return {rows, pendingRows};
+}
+
+let chart;
+function render(){
+  const {rows: forecast, pendingRows} = computeForecast();
+  const currentTotal = forecast[0].trueTotal;
+  const adjustedTotal = forecast[0].netWorth;
+
+  document.getElementById('horizonLabel').textContent = `Personal Finance · ${HORIZON}-Month Runway to Dec 2028`;
+  document.getElementById('currentNW').textContent = fmt(currentTotal)+' ₫';
+  const hasPendingActuals = pending.junActual!==null || pending.julActual!==null;
+  const pendingNote = hasPendingActuals
+    ? `${TODAY.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} · as banked. Forecast rebased from logged Jun/Jul totals → ${fmt(adjustedTotal)} ₫`
+    : TODAY.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('currentSub').textContent = pendingNote;
+  document.getElementById('forecastDesc').textContent = `Projected net worth from today through ${monthLabel(HORIZON)}.`;
+
+  const endVal = forecast[forecast.length-1].netWorth;
+  const midIdx = Math.round(HORIZON/2);
+  const midVal = forecast[midIdx] ? forecast[midIdx].netWorth : endVal;
+  document.getElementById('milestones').innerHTML = `
+    <div class="milestone"><div class="m-label">Today (as banked)</div><div class="m-value">${fmt(currentTotal)} ₫</div></div>
+    <div class="milestone"><div class="m-label">${monthLabel(midIdx)}</div><div class="m-value">${fmt(midVal)} ₫</div></div>
+    <div class="milestone"><div class="m-label">${monthLabel(HORIZON)}</div><div class="m-value">${fmt(endVal)} ₫</div></div>
+  `;
+
+  const labels = ['Jun-2026','Jul-2026', ...forecast.map(r=>r.date)];
+  const fLine = [pendingRows[0].forecastNW, pendingRows[1].forecastNW, ...forecast.map(r=>r.netWorth)];
+  const aLine = [
+    pendingRows[0].actualNW,
+    pendingRows[1].actualNW,
+    ...forecast.map(r=> r.m===0 ? currentTotal : (actuals[r.m] ? (actuals[r.m].cake+actuals[r.m].etf+actuals[r.m].mf+actuals[r.m].emergency) : null))
+  ];
+
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx,{
+    type:'line',
+    data:{labels, datasets:[
+      {label:'Forecast', data:fLine, borderColor:'#A6B3C0', borderDash:[4,4], pointRadius:0, tension:.25, borderWidth:2},
+      {label:'Actual', data:aLine, borderColor:'#D9B33C', backgroundColor:'rgba(217,179,60,0.15)', fill:true, pointRadius:3, pointBackgroundColor:'#D9B33C', tension:.25, spanGaps:true, borderWidth:2}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{ labels:{ color:'#A6B3C0', font:{family:'Inter',size:12} } },
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)} ₫`}} },
+      scales:{
+        x:{ ticks:{ color:'#A6B3C0', maxTicksLimit:8, font:{family:'IBM Plex Mono',size:10} }, grid:{color:'#2C3A47'} },
+        y:{ ticks:{ color:'#A6B3C0', callback:v=>(v/1e6)+'M', font:{family:'IBM Plex Mono',size:10} }, grid:{color:'#2C3A47'} }
+      }
+    }
+  });
+
+  const body = document.getElementById('ledgerBody');
+  body.innerHTML='';
+
+  // June & July: same convention as every other row — Forecast is projected total net worth,
+  // Actual is the total net worth you log, and once logged it becomes the real baseline
+  // (rescaled proportionally across buckets) that the rest of the forecast builds from.
+  const pendingKeys = {jun:'junActual', jul:'julActual'};
+  pendingRows.forEach(pr=>{
+    const row = document.createElement('div');
+    row.className = 'ledger-row pending';
+    const deltaHtml = pr.actualNW!==null
+      ? (()=>{ const d=pr.actualNW-pr.forecastNW; return `<span class="${d>=0?'pos':'neg'}">${d>=0?'+':''}${fmt(d)}</span>`; })()
+      : '<span class="na">—</span>';
+    row.innerHTML = `
+      <div class="m-idx">—</div>
+      <div class="m-date">${pr.date}<span class="pending-tag">Pending</span></div>
+      <div class="m-forecast">${fmt(pr.forecastNW)}</div>
+      <div class="m-actual"><input type="text" data-pending="${pr.key}" value="${pr.actualNW!==null?fmt(pr.actualNW):''}" placeholder="enter total"></div>
+      <div class="m-delta">${deltaHtml}</div>
+    `;
+    body.appendChild(row);
+  });
+  body.querySelectorAll('input[data-pending]').forEach(inp=>{
+    inp.addEventListener('change', async (e)=>{
+      const raw = e.target.value.replace(/[^0-9]/g,'');
+      const key = pendingKeys[e.target.dataset.pending];
+      pending[key] = raw ? parseInt(raw) : null;
+      await savePending();
+      render();
+    });
+  });
+
+  forecast.filter(r=>r.m>0).forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'ledger-row'+(r.m===1?' current':'');
+    const a = actuals[r.m];
+    const actualVal = a ? (a.cake+a.etf+a.mf+a.emergency) : null;
+    let deltaHtml = '<span class="na">—</span>';
+    if(actualVal!==null){
+      const d = actualVal - r.netWorth;
+      deltaHtml = `<span class="${d>=0?'pos':'neg'}">${d>=0?'+':''}${fmt(d)}</span>`;
+    }
+    row.innerHTML = `
+      <div class="m-idx">${r.m}</div>
+      <div class="m-date">${r.date}</div>
+      <div class="m-forecast">${fmt(r.netWorth)}</div>
+      <div class="m-actual"><input type="text" data-month="${r.m}" value="${actualVal!==null?fmt(actualVal):''}" placeholder="enter total"></div>
+      <div class="m-delta">${deltaHtml}</div>
+    `;
+    body.appendChild(row);
+  });
+  body.querySelectorAll('input[data-month]').forEach(inp=>{
+    inp.addEventListener('change', async (e)=>{
+      const raw = e.target.value.replace(/[^0-9]/g,'');
+      const m = parseInt(e.target.dataset.month);
+      if(!raw){ delete actuals[m]; }
+      else { actuals[m] = {cake:parseInt(raw), etf:0, mf:0, emergency:0}; }
+      await saveActuals();
+      render();
+    });
+  });
+}
+
+function updateAssumptionLabels(){
+  document.getElementById('inSavings').value = assumptions.savings;
+  document.getElementById('inGrowth').value = assumptions.growth;
+  document.getElementById('inCash').value = assumptions.cashRate;
+  document.getElementById('inUnlock').value = assumptions.unlockMonths;
+  document.getElementById('inInvestPre').value = assumptions.investPre;
+  document.getElementById('inCakeTopup').value = assumptions.cakeTopup;
+  document.getElementById('inInvestPost').value = assumptions.investPost;
+  document.getElementById('inSplit').value = assumptions.splitEtf;
+
+  document.getElementById('lblSavings').textContent = (assumptions.savings/1e6).toFixed(1)+'M ₫';
+  document.getElementById('lblGrowth').textContent = assumptions.growth+'%/yr';
+  document.getElementById('lblCash').textContent = assumptions.cashRate+'%/yr';
+  document.getElementById('lblUnlock').textContent = assumptions.unlockMonths+' mo';
+  document.getElementById('lblInvestPre').textContent = (assumptions.investPre/1e6).toFixed(1)+'M ₫';
+  document.getElementById('lblCakeTopup').textContent = (assumptions.cakeTopup/1e6).toFixed(1)+'M ₫';
+  document.getElementById('lblInvestPost').textContent = (assumptions.investPost/1e6).toFixed(1)+'M ₫';
+  document.getElementById('lblSplit').textContent = assumptions.splitEtf+'% ETF / '+(100-assumptions.splitEtf)+'% MF';
+  document.getElementById('etfBar').style.width = assumptions.splitEtf+'%';
+  document.getElementById('mfBar').style.width = (100-assumptions.splitEtf)+'%';
+}
+
+async function saveAssumptions(){ try{ await window.storage.set('assumptions', JSON.stringify(assumptions)); }catch(e){console.error(e);} }
+async function saveActuals(){ try{ await window.storage.set('actuals', JSON.stringify(actuals)); }catch(e){console.error(e);} }
+async function saveBuckets(){ try{ await window.storage.set('bucketsNow', JSON.stringify(bucketsNow)); }catch(e){console.error(e);} }
+async function savePending(){ try{ await window.storage.set('pending', JSON.stringify(pending)); }catch(e){console.error(e);} }
+
+['inSavings','inGrowth','inCash','inUnlock','inInvestPre','inCakeTopup','inInvestPost','inSplit'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{
+    const map = {inSavings:'savings',inGrowth:'growth',inCash:'cashRate',inUnlock:'unlockMonths',inInvestPre:'investPre',inCakeTopup:'cakeTopup',inInvestPost:'investPost',inSplit:'splitEtf'};
+    assumptions[map[id]] = parseFloat(e.target.value);
+    updateAssumptionLabels();
+    render();
+  });
+  document.getElementById(id).addEventListener('change', saveAssumptions);
+});
+
+['bCake','bEtf','bMf','bEmergency','bDebt'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{
+    const key = {bCake:'cake',bEtf:'etf',bMf:'mf',bEmergency:'emergency',bDebt:'debt'}[id];
+    const raw = e.target.value.replace(/[^0-9]/g,'');
+    bucketsNow[key] = raw?parseInt(raw):0;
+    render();
+  });
+  document.getElementById(id).addEventListener('change', saveBuckets);
+});
+
+document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  if(!confirm('Clear all saved data and revert to defaults? This cannot be undone.')) return;
+  try{
+    await window.storage.delete('assumptions');
+    await window.storage.delete('actuals');
+    await window.storage.delete('bucketsNow');
+    await window.storage.delete('pending');
+  }catch(e){}
+  assumptions = {savings:15000000, investPre:10000000, cakeTopup:5000000, investPost:5000000, splitEtf:70, growth:12, cashRate:5, unlockMonths:DEFAULT_UNLOCK};
+  bucketsNow = {...DEFAULT_BUCKETS};
+  pending = {junActual:null, julActual:null};
+  actuals = {};
+  updateAssumptionLabels();
+  loadBucketInputs();
+  render();
+});
+
+function loadBucketInputs(){
+  document.getElementById('bCake').value = fmt(bucketsNow.cake);
+  document.getElementById('bEtf').value = fmt(bucketsNow.etf);
+  document.getElementById('bMf').value = fmt(bucketsNow.mf);
+  document.getElementById('bEmergency').value = fmt(bucketsNow.emergency);
+  document.getElementById('bDebt').value = fmt(bucketsNow.debt);
+}
+
+async function init(){
+  try{ const a = await window.storage.get('assumptions'); if(a && a.value) assumptions = {...assumptions, ...JSON.parse(a.value)}; }catch(e){}
+  try{ const ac = await window.storage.get('actuals'); if(ac && ac.value) actuals = JSON.parse(ac.value); }catch(e){}
+  try{ const b = await window.storage.get('bucketsNow'); if(b && b.value) bucketsNow = JSON.parse(b.value); }catch(e){}
+  try{ const p = await window.storage.get('pending'); if(p && p.value) pending = {...pending, ...JSON.parse(p.value)}; }catch(e){}
+  updateAssumptionLabels();
+  loadBucketInputs();
+  render();
+}
+init();
+</script>
+</body>
+</html>
