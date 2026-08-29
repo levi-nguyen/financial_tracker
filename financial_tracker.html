@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Financial Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#0B1017;
+    --surface:#141C25;
+    --surface-2:#1B2530;
+    --border:#2C3A47;
+    --text:#F3F6F9;
+    --muted:#A6B3C0;
+    --gold:#D9B33C;
+    --gold-soft:rgba(217,179,60,0.12);
+    --green:#5FC088;
+    --red:#E37A6B;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    padding:32px 24px 80px;
+  }
+  .wrap{max-width:1120px;margin:0 auto;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:1px solid var(--border);
+    padding-bottom:22px;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+    gap:16px;
+  }
+  .brand{display:flex;flex-direction:column;gap:6px;}
+  .brand .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--gold);
+  }
+  .brand h1{
+    font-family:'Sora',sans-serif;
+    font-weight:700;
+    font-size:28px;
+    margin:0;
+    letter-spacing:-.01em;
+  }
+  .headline-figure{text-align:right;}
+  .headline-figure .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .headline-figure .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:32px;
+    font-weight:600;
+    color:var(--gold);
+    line-height:1.25;
+  }
+  .headline-figure .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+
+  .section-title{
+    font-family:'Sora',sans-serif;
+    font-size:17px;
+    font-weight:600;
+    margin:0 0 4px;
+    color:var(--text);
+  }
+  .section-desc{font-size:13px;color:var(--muted);margin:0 0 16px;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:22px;
+  }
+
+  /* current status */
+  .status-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+  @media (max-width:900px){.status-grid{grid-template-columns:repeat(2,1fr);}}
+  .status-item{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .status-item .name{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:500;}
+  .status-item input{
+    width:100%;background:transparent;border:none;border-bottom:2px solid var(--border);
+    color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;
+    padding:4px 0;outline:none;
+  }
+  .status-item input:focus{border-bottom-color:var(--gold);}
+  .status-item.debt input{color:var(--red);}
+
+  /* chart */
+  .grid2{display:grid;grid-template-columns:2fr 1fr;gap:20px;}
+  @media (max-width:850px){.grid2{grid-template-columns:1fr;}}
+  .chart-wrap{position:relative;width:100%;height:340px;}
+
+  .milestones{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;}
+  .milestone{
+    flex:1;min-width:140px;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;
+  }
+  .milestone .m-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .milestone .m-value{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--text);margin-top:4px;}
+
+  /* assumptions */
+  .field{margin-bottom:16px;}
+  .field label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;color:var(--text);margin-bottom:7px;font-weight:500;
+  }
+  .field label .val{font-family:'IBM Plex Mono',monospace;color:var(--gold);font-weight:600;}
+  .field input[type=range]{width:100%;accent-color:var(--gold);height:4px;}
+  .split-bar{height:8px;border-radius:4px;overflow:hidden;display:flex;margin-top:8px;background:var(--surface-2);}
+  .split-bar .etf-part{background:var(--gold);}
+  .split-bar .mf-part{background:var(--border);}
+
+  details{margin-top:6px;border-top:1px solid var(--border);padding-top:14px;}
+  summary{
+    cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;
+    list-style:none;display:flex;align-items:center;gap:6px;
+  }
+  summary::-webkit-details-marker{display:none;}
+  summary::before{content:'+';color:var(--gold);font-weight:700;width:14px;}
+  details[open] summary::before{content:'–';}
+  details .field{margin-top:16px;}
+
+  .note{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+  .reset-link{display:inline-block;margin-top:6px;font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline;}
+
+  .footnote{margin-top:24px;font-size:12px;color:var(--muted);line-height:1.6;border-top:1px solid var(--border);padding-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow" id="horizonLabel">Personal Finance</span>
+      <h1>Financial Tracker</h1>
+    </div>
+    <div class="headline-figure">
+      <div class="label">Current Net Worth</div>
+      <div class="value" id="currentNW">—</div>
+      <div class="sub" id="currentSub"></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="section-title">Current Status</div>
+    <div class="section-desc">Your live snapshot — edit any figure and the forecast below recalculates instantly.</div>
+    <div class="status-grid">
+      <div class="status-item">
+        <div class="name">Cake Savings</div>
+        <input type="text" id="bCake" inputmode="numeric">
+      </div>
+      <div class="status-item">
+        <div class="name">ETF</div>
+        <input type="text" id="bEtf" inputmode="numeric">
+      </div>
+      <div class="status-item">
+        <div class="name">Mutual Fund</div>
+        <input type="text" id="bMf" inputmode="numeric">
+      </div>
+      <div class="status-item">
+        <div class="name">Emergency Fund</div>
+        <input type="text" id="bEmergency" inputmode="numeric">
+      </div>
+      <div class="status-item debt">
+        <div class="name">Outstanding Debt</div>
+        <input type="text" id="bDebt" inputmode="numeric">
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="section-title">Forecast</div>
+      <div class="section-desc" id="forecastDesc">Projected net worth from today through end of 2028.</div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+      <div class="milestones" id="milestones"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Assumptions</div>
+      <div class="section-desc">Drives the forecast line.</div>
+      <div class="field">
+        <label>Monthly savings <span class="val" id="lblSavings"></span></label>
+        <input type="range" id="inSavings" min="5000000" max="30000000" step="500000">
+      </div>
+      <div class="field">
+        <label>Investment growth <span class="val" id="lblGrowth"></span></label>
+        <input type="range" id="inGrowth" min="0" max="20" step="0.5">
+      </div>
+      <div class="field">
+        <label>Cash/savings interest <span class="val" id="lblCash"></span></label>
+        <input type="range" id="inCash" min="0" max="10" step="0.25">
+      </div>
+    </div>
+  </div>
+
+
+  <span class="reset-link" id="resetBtn">Reset all data</span>
+
+  <div class="footnote">
+    Investment growth and cash interest are scenario assumptions, not guarantees — Vietnamese equity funds are volatile and past performance (e.g. DCDS's ~15%/yr trailing 10-year return, per Dragon Capital's own reporting) does not predict future results. One-off events (a receivable landing, a debt payoff) aren't auto-modeled — update Current Status directly when they happen, and the forecast rebases from there. Data is stored locally to your account and not shared.
+  </div>
+
+</div>
+
+<script>
+const TODAY = new Date();
+// Storage compatibility shim: use Claude's window.storage when available (in-artifact),
+// fall back to localStorage for standalone hosting (e.g. Vercel).
+if(typeof window.storage === 'undefined'){
+  window.storage = {
+    async get(key){
+      const v = localStorage.getItem('nwl_'+key);
+      if(v===null) throw new Error('not found');
+      return {key, value:v, shared:false};
+    },
+    async set(key,value){
+      localStorage.setItem('nwl_'+key, value);
+      return {key, value, shared:false};
+    },
+    async delete(key){
+      localStorage.removeItem('nwl_'+key);
+      return {key, deleted:true, shared:false};
+    },
+    async list(prefix){
+      const keys = Object.keys(localStorage).filter(k=>k.startsWith('nwl_'+(prefix||''))).map(k=>k.replace('nwl_',''));
+      return {keys, shared:false};
+    }
+  };
+}
+const TARGET_END = new Date(2028,11,31);
+const UNLOCK_TARGET = new Date(2026,8,1); // Sept 1 2026
+
+function monthsBetween(a,b){
+  return (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth());
+}
+const HORIZON = Math.max(monthsBetween(TODAY, TARGET_END), 1);
+const DEFAULT_UNLOCK = Math.max(monthsBetween(TODAY, UNLOCK_TARGET), 0);
+
+const DEFAULT_BUCKETS = {cake:279936000, etf:8600000, mf:2500000, emergency:3935302, debt:3300000};
+let bucketsNow = {...DEFAULT_BUCKETS};                 // live, editable — "what do I actually have right now"
+let forecastBaseline = null;                            // frozen at first run — the Forecast line never moves off this, only Assumptions can reshape it
+let actualHistory = {};                                 // { "2026-08": 340000000, ... } — auto-captured live snapshot per month, past months freeze naturally
+let assumptions = {savings:15000000, investPre:10000000, cakeTopup:5000000, investPost:5000000, splitEtf:70, growth:12, cashRate:5, unlockMonths:DEFAULT_UNLOCK};
+
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const monthLabel = m => new Date(TODAY.getFullYear(), TODAY.getMonth()+m, 1).toLocaleString('en-US',{month:'short',year:'numeric'});
+const monthKey = m => { const d=new Date(TODAY.getFullYear(), TODAY.getMonth()+m, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
+
+function computeForecast(){
+  const rM = Math.pow(1+assumptions.cashRate/100,1/12)-1;
+  const iM = Math.pow(1+assumptions.growth/100,1/12)-1;
+  const etfPre = assumptions.investPre*(assumptions.splitEtf/100);
+  const mfPre = assumptions.investPre*(1-assumptions.splitEtf/100);
+  const etfPost = assumptions.investPost*(assumptions.splitEtf/100);
+  const mfPost = assumptions.investPost*(1-assumptions.splitEtf/100);
+  const emergencyPre = Math.max(assumptions.savings - assumptions.investPre, 0);
+  const emergencyPost = Math.max(assumptions.savings - assumptions.investPost - assumptions.cakeTopup, 0);
+  // The Forecast line always projects from the FROZEN baseline, never from live bucketsNow —
+  // that's what makes it a fixed projection rather than something that jumps around every
+  // time you update Current Status. Only Assumptions changes are allowed to reshape it.
+  const base = forecastBaseline || bucketsNow;
+  let cake=base.cake, etf=base.etf, mf=base.mf, emergency=base.emergency, debt=base.debt;
+  const baselineTotal = cake+etf+mf+emergency-debt;
+
+  const rows=[{m:0,date:'Today',netWorth:baselineTotal, key:monthKey(0)}];
+  for(let m=1;m<=HORIZON;m++){
+    cake *= (1+rM);
+    if(m>=assumptions.unlockMonths){
+      cake += assumptions.cakeTopup;
+      etf=(etf+etfPost)*(1+iM);
+      mf=(mf+mfPost)*(1+iM);
+      emergency=(emergency+emergencyPost)*(1+rM);
+    } else {
+      etf=(etf+etfPre)*(1+iM);
+      mf=(mf+mfPre)*(1+iM);
+      emergency=(emergency+emergencyPre)*(1+rM);
+    }
+    rows.push({m, date:monthLabel(m), netWorth: cake+etf+mf+emergency-debt, key:monthKey(m)});
+  }
+  return {rows};
+}
+
+let chart;
+function render(){
+  const {rows: forecast} = computeForecast();
+  const liveTotal = bucketsNow.cake+bucketsNow.etf+bucketsNow.mf+bucketsNow.emergency-bucketsNow.debt;
+
+  // Auto-capture this month's live snapshot as the Actual value for the current month.
+  // Past months are never touched here, so once the calendar moves on, their value freezes
+  // exactly as it was the last time this ran during that month — no manual logging needed.
+  actualHistory[monthKey(0)] = liveTotal;
+  saveActualHistory();
+
+  document.getElementById('horizonLabel').textContent = `Personal Finance · ${HORIZON}-Month Runway to Dec 2028`;
+  document.getElementById('currentNW').textContent = fmt(liveTotal)+' ₫';
+  document.getElementById('currentSub').textContent = TODAY.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('forecastDesc').textContent = `Fixed projection from today through ${monthLabel(HORIZON)}.`;
+
+  // Milestones: Dec 2026 / Dec 2027 / Dec 2028, clamped to the visible horizon
+  const milestoneYears = [2026, 2027, 2028];
+  const milestoneVals = milestoneYears.map(y=>{
+    const idx = Math.min(Math.max(monthsBetween(TODAY, new Date(y,11,31)), 0), HORIZON);
+    return { label:`Dec ${y}`, value: forecast[idx].netWorth };
+  });
+  document.getElementById('milestones').innerHTML = milestoneVals.map(mv=>
+    `<div class="milestone"><div class="m-label">${mv.label}</div><div class="m-value">${fmt(mv.value)} ₫</div></div>`
+  ).join('');
+
+  const labels = forecast.map(r=>r.date);
+  const fLine = forecast.map(r=>r.netWorth);
+  // Actual: a real (if sparse) history. Only months with a captured snapshot get a value;
+  // everything else stays null so the line only draws across months you actually have data
+  // for — it grows naturally over time instead of being faked across the whole horizon.
+  const aLine = forecast.map(r=> actualHistory[r.key]!==undefined ? actualHistory[r.key] : null);
+
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0,0,0,320);
+  gradient.addColorStop(0,'rgba(166,179,192,0.20)');
+  gradient.addColorStop(1,'rgba(166,179,192,0.01)');
+
+  chart = new Chart(ctx,{
+    type:'line',
+    data:{labels, datasets:[
+      {
+        label:'Forecast',
+        data:fLine,
+        borderColor:'#A6B3C0',
+        backgroundColor:gradient,
+        fill:true,
+        pointRadius:0,
+        pointHoverRadius:4,
+        pointHoverBackgroundColor:'#A6B3C0',
+        pointHoverBorderColor:'#0B1017',
+        pointHoverBorderWidth:2,
+        borderWidth:2,
+        borderDash:[5,4],
+        tension:.35,
+        cubicInterpolationMode:'monotone'
+      },
+      {
+        label:'Actual',
+        data:aLine,
+        borderColor:'#D9B33C',
+        backgroundColor:'#D9B33C',
+        fill:false,
+        pointRadius:5,
+        pointHoverRadius:7,
+        pointBackgroundColor:'#D9B33C',
+        pointBorderColor:'#0B1017',
+        pointBorderWidth:2,
+        pointStyle:'circle',
+        borderWidth:2.5,
+        tension:.3,
+        spanGaps:true,
+        cubicInterpolationMode:'monotone'
+      }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      layout:{ padding:{top:10,right:10,bottom:6,left:0} },
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{
+          display:true,
+          position:'top',
+          align:'end',
+          labels:{ color:'#A6B3C0', font:{family:'Inter',size:12}, boxWidth:16, boxHeight:2, padding:16, usePointStyle:false }
+        },
+        tooltip:{
+          backgroundColor:'#1B2530',
+          borderColor:'#2C3A47',
+          borderWidth:1,
+          titleColor:'#A6B3C0',
+          bodyColor:'#F3F6F9',
+          bodyFont:{family:'IBM Plex Mono',size:13,weight:'600'},
+          titleFont:{family:'Inter',size:11},
+          padding:10,
+          displayColors:false,
+          callbacks:{label:c=>`${fmt(c.raw)} ₫`}
+        }
+      },
+      scales:{
+        x:{
+          ticks:{
+            color:'#A6B3C0',
+            maxTicksLimit:6,
+            autoSkipPadding:24,
+            font:{family:'IBM Plex Mono',size:11},
+            maxRotation:0,
+            minRotation:0,
+            autoSkip:true,
+            padding:8
+          },
+          grid:{ display:false },
+          border:{ color:'#2C3A47' }
+        },
+        y:{
+          ticks:{ color:'#A6B3C0', maxTicksLimit:6, callback:v=>(v/1e6).toFixed(0)+'M', font:{family:'IBM Plex Mono',size:11} },
+          grid:{ color:'#1F2A34' },
+          border:{ display:false }
+        }
+      }
+    }
+  });
+
+  // Force a re-measure after layout settles and after custom fonts finish loading —
+  // the most common cause of squished/overlapping tick labels is the chart rendering
+  // once against a stale container size or fallback font metrics before either is ready.
+  requestAnimationFrame(()=> chart && chart.resize());
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(()=> chart && chart.resize());
+  }
+}
+
+function updateAssumptionLabels(){
+  document.getElementById('inSavings').value = assumptions.savings;
+  document.getElementById('inGrowth').value = assumptions.growth;
+  document.getElementById('inCash').value = assumptions.cashRate;
+
+  document.getElementById('lblSavings').textContent = (assumptions.savings/1e6).toFixed(1)+'M ₫';
+  document.getElementById('lblGrowth').textContent = assumptions.growth+'%/yr';
+  document.getElementById('lblCash').textContent = assumptions.cashRate+'%/yr';
+}
+
+async function saveAssumptions(){ try{ await window.storage.set('assumptions', JSON.stringify(assumptions)); }catch(e){console.error(e);} }
+async function saveBuckets(){ try{ await window.storage.set('bucketsNow', JSON.stringify(bucketsNow)); }catch(e){console.error(e);} }
+async function saveForecastBaseline(){ try{ await window.storage.set('forecastBaseline', JSON.stringify(forecastBaseline)); }catch(e){console.error(e);} }
+async function saveActualHistory(){ try{ await window.storage.set('actualHistory', JSON.stringify(actualHistory)); }catch(e){console.error(e);} }
+
+['inSavings','inGrowth','inCash'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{
+    const map = {inSavings:'savings',inGrowth:'growth',inCash:'cashRate'};
+    assumptions[map[id]] = parseFloat(e.target.value);
+    updateAssumptionLabels();
+    render();
+  });
+  document.getElementById(id).addEventListener('change', saveAssumptions);
+});
+
+['bCake','bEtf','bMf','bEmergency','bDebt'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{
+    const key = {bCake:'cake',bEtf:'etf',bMf:'mf',bEmergency:'emergency',bDebt:'debt'}[id];
+    const raw = e.target.value.replace(/[^0-9]/g,'');
+    bucketsNow[key] = raw?parseInt(raw):0;
+    render();
+  });
+  document.getElementById(id).addEventListener('change', saveBuckets);
+});
+
+document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  if(!confirm('Clear all saved data and revert to defaults? This cannot be undone.')) return;
+  try{
+    await window.storage.delete('assumptions');
+    await window.storage.delete('bucketsNow');
+    await window.storage.delete('forecastBaseline');
+    await window.storage.delete('actualHistory');
+  }catch(e){}
+  assumptions = {savings:15000000, investPre:10000000, cakeTopup:5000000, investPost:5000000, splitEtf:70, growth:12, cashRate:5, unlockMonths:DEFAULT_UNLOCK};
+  bucketsNow = {...DEFAULT_BUCKETS};
+  forecastBaseline = {...DEFAULT_BUCKETS};
+  actualHistory = {};
+  await saveForecastBaseline();
+  updateAssumptionLabels();
+  loadBucketInputs();
+  render();
+});
+
+function loadBucketInputs(){
+  document.getElementById('bCake').value = fmt(bucketsNow.cake);
+  document.getElementById('bEtf').value = fmt(bucketsNow.etf);
+  document.getElementById('bMf').value = fmt(bucketsNow.mf);
+  document.getElementById('bEmergency').value = fmt(bucketsNow.emergency);
+  document.getElementById('bDebt').value = fmt(bucketsNow.debt);
+}
+
+async function init(){
+  try{ const a = await window.storage.get('assumptions'); if(a && a.value) assumptions = {...assumptions, ...JSON.parse(a.value)}; }catch(e){}
+  try{ const b = await window.storage.get('bucketsNow'); if(b && b.value) bucketsNow = JSON.parse(b.value); }catch(e){}
+  try{ const fb = await window.storage.get('forecastBaseline'); if(fb && fb.value) forecastBaseline = JSON.parse(fb.value); }catch(e){}
+  try{ const ah = await window.storage.get('actualHistory'); if(ah && ah.value) actualHistory = JSON.parse(ah.value); }catch(e){}
+
+  // First-ever run: no baseline exists yet, so freeze one now from whatever Current Status is.
+  if(!forecastBaseline){
+    forecastBaseline = {...bucketsNow};
+    await saveForecastBaseline();
+  }
+
+  updateAssumptionLabels();
+  loadBucketInputs();
+  render();
+}
+init();
+window.addEventListener('resize', ()=>{ if(chart) chart.resize(); });
+</script>
+</body>
+</html>
