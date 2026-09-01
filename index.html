@@ -86,7 +86,7 @@
   }
 
   /* current status */
-  .status-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+  .status-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
   @media (max-width:900px){.status-grid{grid-template-columns:repeat(2,1fr);}}
   .status-item{
     background:var(--surface-2);
@@ -170,12 +170,8 @@
         <input type="text" id="bCake" inputmode="numeric">
       </div>
       <div class="status-item">
-        <div class="name">ETF</div>
-        <input type="text" id="bEtf" inputmode="numeric">
-      </div>
-      <div class="status-item">
-        <div class="name">Mutual Fund</div>
-        <input type="text" id="bMf" inputmode="numeric">
+        <div class="name">Investment</div>
+        <input type="text" id="bInvest" inputmode="numeric">
       </div>
       <div class="status-item">
         <div class="name">Emergency Fund</div>
@@ -199,16 +195,22 @@
       <div class="section-title">Assumptions</div>
       <div class="section-desc">Drives the forecast line.</div>
       <div class="field">
-        <label>Monthly savings <span class="val" id="lblSavings"></span></label>
-        <input type="range" id="inSavings" min="5000000" max="30000000" step="500000">
+        <label>Cake interest rate <span class="val" id="lblCakeRate"></span></label>
+        <input type="range" id="inCakeRate" min="0" max="15" step="0.1">
       </div>
       <div class="field">
-        <label>Investment growth <span class="val" id="lblGrowth"></span></label>
-        <input type="range" id="inGrowth" min="0" max="20" step="0.5">
+        <label>Investment interest rate <span class="val" id="lblInvestRate"></span></label>
+        <input type="range" id="inInvestRate" min="0" max="25" step="0.5">
       </div>
       <div class="field">
-        <label>Cash/savings interest <span class="val" id="lblCash"></span></label>
-        <input type="range" id="inCash" min="0" max="10" step="0.25">
+        <label>Monthly savings (total) <span class="val" id="lblSavings"></span></label>
+        <input type="range" id="inSavings" min="0" max="30000000" step="500000">
+      </div>
+      <div class="field">
+        <label>→ to Investment <span class="val" id="lblInvestContrib"></span></label>
+        <input type="range" id="inInvestContrib" min="0" max="30000000" step="500000">
+        <div class="split-bar"><div class="etf-part" id="investBar" style="width:50%"></div><div class="mf-part" id="emergBar" style="width:50%"></div></div>
+        <div class="note">Remainder flows to Emergency Fund (no interest). Cake gets no monthly contribution — compounding only. Adjust this whenever the real split changes.</div>
       </div>
     </div>
   </div>
@@ -217,7 +219,7 @@
   <span class="reset-link" id="resetBtn">Reset all data</span>
 
   <div class="footnote">
-    Investment growth and cash interest are scenario assumptions, not guarantees — Vietnamese equity funds are volatile and past performance (e.g. DCDS's ~15%/yr trailing 10-year return, per Dragon Capital's own reporting) does not predict future results. One-off events (a receivable landing, a debt payoff) aren't auto-modeled — update Current Status directly when they happen, and the forecast rebases from there. Data is stored locally to your account and not shared.
+    Cake and Investment interest rates are scenario assumptions, not guarantees — Vietnamese equity funds are volatile and past performance (e.g. DCDS's ~15%/yr trailing 10-year return, per Dragon Capital's own reporting) does not predict future results. Emergency Fund earns no interest by design. Debt is held fixed — update Current Status directly if it changes. Data is stored locally to your account and not shared.
   </div>
 
 </div>
@@ -248,54 +250,41 @@ if(typeof window.storage === 'undefined'){
   };
 }
 const TARGET_END = new Date(2028,11,31);
-const UNLOCK_TARGET = new Date(2026,8,1); // Sept 1 2026
 
 function monthsBetween(a,b){
   return (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth());
 }
 const HORIZON = Math.max(monthsBetween(TODAY, TARGET_END), 1);
-const DEFAULT_UNLOCK = Math.max(monthsBetween(TODAY, UNLOCK_TARGET), 0);
 
-const DEFAULT_BUCKETS = {cake:279936000, etf:8600000, mf:2500000, emergency:3935302, debt:3300000};
+const DEFAULT_BUCKETS = {cake:279936000, invest:11100000, emergency:3935302, debt:3300000};
 let bucketsNow = {...DEFAULT_BUCKETS};                 // live, editable — "what do I actually have right now"
-let forecastBaseline = null;                            // frozen at first run — the Forecast line never moves off this, only Assumptions can reshape it
 let actualHistory = {};                                 // { "2026-08": 340000000, ... } — auto-captured live snapshot per month, past months freeze naturally
-let assumptions = {savings:15000000, investPre:10000000, cakeTopup:5000000, investPost:5000000, splitEtf:70, growth:12, cashRate:5, unlockMonths:DEFAULT_UNLOCK};
+let assumptions = {cakeRate:7.4, investRate:13, savings:15000000, investContrib:7500000};
 
 const fmt = n => Math.round(n).toLocaleString('en-US');
 const monthLabel = m => new Date(TODAY.getFullYear(), TODAY.getMonth()+m, 1).toLocaleString('en-US',{month:'short',year:'numeric'});
 const monthKey = m => { const d=new Date(TODAY.getFullYear(), TODAY.getMonth()+m, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
 
 function computeForecast(){
-  const rM = Math.pow(1+assumptions.cashRate/100,1/12)-1;
-  const iM = Math.pow(1+assumptions.growth/100,1/12)-1;
-  const etfPre = assumptions.investPre*(assumptions.splitEtf/100);
-  const mfPre = assumptions.investPre*(1-assumptions.splitEtf/100);
-  const etfPost = assumptions.investPost*(assumptions.splitEtf/100);
-  const mfPost = assumptions.investPost*(1-assumptions.splitEtf/100);
-  const emergencyPre = Math.max(assumptions.savings - assumptions.investPre, 0);
-  const emergencyPost = Math.max(assumptions.savings - assumptions.investPost - assumptions.cakeTopup, 0);
-  // The Forecast line always projects from the FROZEN baseline, never from live bucketsNow —
-  // that's what makes it a fixed projection rather than something that jumps around every
-  // time you update Current Status. Only Assumptions changes are allowed to reshape it.
-  const base = forecastBaseline || bucketsNow;
-  let cake=base.cake, etf=base.etf, mf=base.mf, emergency=base.emergency, debt=base.debt;
-  const baselineTotal = cake+etf+mf+emergency-debt;
+  const rCakeM = Math.pow(1+assumptions.cakeRate/100,1/12)-1;
+  const rInvestM = Math.pow(1+assumptions.investRate/100,1/12)-1;
+  const investContrib = Math.min(assumptions.investContrib, assumptions.savings);
+  const emergencyContrib = Math.max(assumptions.savings - investContrib, 0);
 
-  const rows=[{m:0,date:'Today',netWorth:baselineTotal, key:monthKey(0)}];
+  // Rolling forecast: always projects forward from your live Current Status.
+  // Cake: pure compounding, no monthly contribution.
+  // Investment: compounds AND gets a monthly contribution.
+  // Emergency: gets a monthly contribution but never compounds (no interest).
+  // Debt: held fixed for the entire horizon.
+  let cake=bucketsNow.cake, invest=bucketsNow.invest, emergency=bucketsNow.emergency, debt=bucketsNow.debt;
+  const liveTotal = cake+invest+emergency-debt;
+
+  const rows=[{m:0,date:'Today',netWorth:liveTotal, key:monthKey(0)}];
   for(let m=1;m<=HORIZON;m++){
-    cake *= (1+rM);
-    if(m>=assumptions.unlockMonths){
-      cake += assumptions.cakeTopup;
-      etf=(etf+etfPost)*(1+iM);
-      mf=(mf+mfPost)*(1+iM);
-      emergency=(emergency+emergencyPost)*(1+rM);
-    } else {
-      etf=(etf+etfPre)*(1+iM);
-      mf=(mf+mfPre)*(1+iM);
-      emergency=(emergency+emergencyPre)*(1+rM);
-    }
-    rows.push({m, date:monthLabel(m), netWorth: cake+etf+mf+emergency-debt, key:monthKey(m)});
+    cake *= (1+rCakeM);
+    invest = (invest+investContrib)*(1+rInvestM);
+    emergency = emergency + emergencyContrib;
+    rows.push({m, date:monthLabel(m), netWorth: cake+invest+emergency-debt, key:monthKey(m)});
   }
   return {rows};
 }
@@ -303,7 +292,7 @@ function computeForecast(){
 let chart;
 function render(){
   const {rows: forecast} = computeForecast();
-  const liveTotal = bucketsNow.cake+bucketsNow.etf+bucketsNow.mf+bucketsNow.emergency-bucketsNow.debt;
+  const liveTotal = bucketsNow.cake+bucketsNow.invest+bucketsNow.emergency-bucketsNow.debt;
 
   // Auto-capture this month's live snapshot as the Actual value for the current month.
   // Past months are never touched here, so once the calendar moves on, their value freezes
@@ -314,7 +303,7 @@ function render(){
   document.getElementById('horizonLabel').textContent = `Personal Finance · ${HORIZON}-Month Runway to Dec 2028`;
   document.getElementById('currentNW').textContent = fmt(liveTotal)+' ₫';
   document.getElementById('currentSub').textContent = TODAY.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  document.getElementById('forecastDesc').textContent = `Fixed projection from today through ${monthLabel(HORIZON)}.`;
+  document.getElementById('forecastDesc').textContent = `Rolling projection from today's live status through ${monthLabel(HORIZON)}.`;
 
   // Milestones: Dec 2026 / Dec 2027 / Dec 2028, clamped to the visible horizon
   const milestoneYears = [2026, 2027, 2028];
@@ -435,33 +424,42 @@ function render(){
 }
 
 function updateAssumptionLabels(){
+  document.getElementById('inCakeRate').value = assumptions.cakeRate;
+  document.getElementById('inInvestRate').value = assumptions.investRate;
   document.getElementById('inSavings').value = assumptions.savings;
-  document.getElementById('inGrowth').value = assumptions.growth;
-  document.getElementById('inCash').value = assumptions.cashRate;
+  document.getElementById('inInvestContrib').value = Math.min(assumptions.investContrib, assumptions.savings);
 
+  document.getElementById('lblCakeRate').textContent = assumptions.cakeRate+'%/yr';
+  document.getElementById('lblInvestRate').textContent = assumptions.investRate+'%/yr';
   document.getElementById('lblSavings').textContent = (assumptions.savings/1e6).toFixed(1)+'M ₫';
-  document.getElementById('lblGrowth').textContent = assumptions.growth+'%/yr';
-  document.getElementById('lblCash').textContent = assumptions.cashRate+'%/yr';
+  const investContrib = Math.min(assumptions.investContrib, assumptions.savings);
+  const emergContrib = assumptions.savings - investContrib;
+  document.getElementById('lblInvestContrib').textContent = (investContrib/1e6).toFixed(1)+'M ₫ / '+(emergContrib/1e6).toFixed(1)+'M ₫ Emergency';
+  const pct = assumptions.savings>0 ? (investContrib/assumptions.savings*100) : 50;
+  document.getElementById('investBar').style.width = pct+'%';
+  document.getElementById('emergBar').style.width = (100-pct)+'%';
 }
 
 async function saveAssumptions(){ try{ await window.storage.set('assumptions', JSON.stringify(assumptions)); }catch(e){console.error(e);} }
 async function saveBuckets(){ try{ await window.storage.set('bucketsNow', JSON.stringify(bucketsNow)); }catch(e){console.error(e);} }
-async function saveForecastBaseline(){ try{ await window.storage.set('forecastBaseline', JSON.stringify(forecastBaseline)); }catch(e){console.error(e);} }
 async function saveActualHistory(){ try{ await window.storage.set('actualHistory', JSON.stringify(actualHistory)); }catch(e){console.error(e);} }
 
-['inSavings','inGrowth','inCash'].forEach(id=>{
+['inCakeRate','inInvestRate','inSavings','inInvestContrib'].forEach(id=>{
   document.getElementById(id).addEventListener('input', (e)=>{
-    const map = {inSavings:'savings',inGrowth:'growth',inCash:'cashRate'};
+    const map = {inCakeRate:'cakeRate',inInvestRate:'investRate',inSavings:'savings',inInvestContrib:'investContrib'};
     assumptions[map[id]] = parseFloat(e.target.value);
+    if(id==='inSavings' && assumptions.investContrib > assumptions.savings){
+      assumptions.investContrib = assumptions.savings;
+    }
     updateAssumptionLabels();
     render();
   });
   document.getElementById(id).addEventListener('change', saveAssumptions);
 });
 
-['bCake','bEtf','bMf','bEmergency','bDebt'].forEach(id=>{
+['bCake','bInvest','bEmergency','bDebt'].forEach(id=>{
   document.getElementById(id).addEventListener('input', (e)=>{
-    const key = {bCake:'cake',bEtf:'etf',bMf:'mf',bEmergency:'emergency',bDebt:'debt'}[id];
+    const key = {bCake:'cake',bInvest:'invest',bEmergency:'emergency',bDebt:'debt'}[id];
     const raw = e.target.value.replace(/[^0-9]/g,'');
     bucketsNow[key] = raw?parseInt(raw):0;
     render();
@@ -474,14 +472,11 @@ document.getElementById('resetBtn').addEventListener('click', async ()=>{
   try{
     await window.storage.delete('assumptions');
     await window.storage.delete('bucketsNow');
-    await window.storage.delete('forecastBaseline');
     await window.storage.delete('actualHistory');
   }catch(e){}
-  assumptions = {savings:15000000, investPre:10000000, cakeTopup:5000000, investPost:5000000, splitEtf:70, growth:12, cashRate:5, unlockMonths:DEFAULT_UNLOCK};
+  assumptions = {cakeRate:7.4, investRate:13, savings:15000000, investContrib:7500000};
   bucketsNow = {...DEFAULT_BUCKETS};
-  forecastBaseline = {...DEFAULT_BUCKETS};
   actualHistory = {};
-  await saveForecastBaseline();
   updateAssumptionLabels();
   loadBucketInputs();
   render();
@@ -489,8 +484,7 @@ document.getElementById('resetBtn').addEventListener('click', async ()=>{
 
 function loadBucketInputs(){
   document.getElementById('bCake').value = fmt(bucketsNow.cake);
-  document.getElementById('bEtf').value = fmt(bucketsNow.etf);
-  document.getElementById('bMf').value = fmt(bucketsNow.mf);
+  document.getElementById('bInvest').value = fmt(bucketsNow.invest);
   document.getElementById('bEmergency').value = fmt(bucketsNow.emergency);
   document.getElementById('bDebt').value = fmt(bucketsNow.debt);
 }
@@ -498,13 +492,16 @@ function loadBucketInputs(){
 async function init(){
   try{ const a = await window.storage.get('assumptions'); if(a && a.value) assumptions = {...assumptions, ...JSON.parse(a.value)}; }catch(e){}
   try{ const b = await window.storage.get('bucketsNow'); if(b && b.value) bucketsNow = JSON.parse(b.value); }catch(e){}
-  try{ const fb = await window.storage.get('forecastBaseline'); if(fb && fb.value) forecastBaseline = JSON.parse(fb.value); }catch(e){}
   try{ const ah = await window.storage.get('actualHistory'); if(ah && ah.value) actualHistory = JSON.parse(ah.value); }catch(e){}
 
-  // First-ever run: no baseline exists yet, so freeze one now from whatever Current Status is.
-  if(!forecastBaseline){
-    forecastBaseline = {...bucketsNow};
-    await saveForecastBaseline();
+  // Migration: older saved data had separate etf/mf fields instead of one merged
+  // "invest" field. If we find the old shape, merge it forward automatically so
+  // no money silently disappears from the numbers.
+  if(bucketsNow.invest===undefined && (bucketsNow.etf!==undefined || bucketsNow.mf!==undefined)){
+    bucketsNow.invest = (bucketsNow.etf||0) + (bucketsNow.mf||0);
+    delete bucketsNow.etf;
+    delete bucketsNow.mf;
+    await saveBuckets();
   }
 
   updateAssumptionLabels();
